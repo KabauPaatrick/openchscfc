@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Module, Permission, Role, User
+from .models import Module, Permission, Role, RolePermissions, User
 
 
 class ModuleSerializer(serializers.ModelSerializer):
@@ -15,7 +15,9 @@ class PermissionSerializer(serializers.ModelSerializer):
 
 
 class RoleSerializer(serializers.ModelSerializer):
-    permissions = serializers.PrimaryKeyRelatedField(queryset=Permission.objects.all(), many=True)
+    role_permissions = serializers.PrimaryKeyRelatedField(
+        queryset=Permission.objects.all(), many=True  # No need for 'source' argument
+    )
     modules = serializers.PrimaryKeyRelatedField(queryset=Module.objects.all(), many=True)
 
     class Meta:
@@ -23,18 +25,21 @@ class RoleSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def create(self, validated_data):
-        permissions_data = validated_data.pop('permissions', [])
+        permissions_data = validated_data.pop('role_permissions', [])
         modules_data = validated_data.pop('modules', [])
         role = Role.objects.create(**validated_data)
 
-        # Add permissions and modules to the role (permissions and modules are now IDs, not instances)
-        role.permissions.set(permissions_data)
+        # Assign modules
         role.modules.set(modules_data)
+
+        # Create role-permission mappings
+        for permission in permissions_data:
+            RolePermissions.objects.create(role=role, permission=permission)
 
         return role
 
     def update(self, instance, validated_data):
-        permissions_data = validated_data.pop('permissions', [])
+        permissions_data = validated_data.pop('role_permissions', [])
         modules_data = validated_data.pop('modules', [])
 
         # Update role fields
@@ -42,13 +47,17 @@ class RoleSerializer(serializers.ModelSerializer):
         instance.description = validated_data.get('description', instance.description)
         instance.save()
 
-        # Update permissions
-        instance.permissions.set(permissions_data)
-
         # Update modules
         instance.modules.set(modules_data)
 
+        # Update role-permission mappings
+        RolePermissions.objects.filter(role=instance).delete()
+        for permission in permissions_data:
+            RolePermissions.objects.create(role=instance, permission=permission)
+
         return instance
+
+
 
 
 class UserSerializer(serializers.ModelSerializer):

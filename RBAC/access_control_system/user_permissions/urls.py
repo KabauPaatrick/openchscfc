@@ -13,11 +13,4 @@ router.register(r'users', UserViewSet, basename='users')
 urlpatterns = [
     # Include all routes registered in the router
     path('', include(router.urls)),
-
-    # Custom endpoint for filtering permissions by module
-    path(
-        'users/<int:pk>/permissions_by_module/',
-        UserViewSet.as_view({'get': 'permissions_by_module'}),
-        name='user-permissions-by-module'
-    ),
 ]
